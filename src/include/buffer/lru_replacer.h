@@ -37,6 +37,9 @@ class LRUReplacer : public Replacer {
 
 private:
   // add your own private member variables here
+  list<frame_id_t> v_list;
+  vector<list<frame_id_t>::iterator> cache;
+  size_t num;
 };
 
 #endif  // MINISQL_LRU_REPLACER_H
