@@ -80,6 +80,8 @@ class Schema {
    */
   static uint32_t DeserializeFrom(char *buf, Schema *&schema);
 
+  bool CompareEqualTo(const Schema *other);
+
  private:
   static constexpr uint32_t SCHEMA_MAGIC_NUM = 200715;
   std::vector<Column *> columns_;

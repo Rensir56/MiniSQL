@@ -36,6 +36,8 @@ class Column {
 
   static uint32_t DeserializeFrom(char *buf, Column *&column);
 
+  bool CompareEqualTo(const Column *other);
+
  private:
   static constexpr uint32_t COLUMN_MAGIC_NUM = 210928;
   std::string name_;

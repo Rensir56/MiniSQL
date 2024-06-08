@@ -101,3 +101,62 @@ TEST(TupleTest, RowTest) {
   ASSERT_TRUE(table_page.MarkDelete(row.GetRowId(), nullptr, nullptr, nullptr));
   table_page.ApplyDelete(row.GetRowId(), nullptr, nullptr);
 }
+
+// my tests
+TEST(TupleTest, SerializeDeserializeTest) {
+    TablePage table_page;
+    // create schema
+    std::vector<Column *> columns = {new Column("id", TypeId::kTypeInt, 0, false, false),
+                                     new Column("name", TypeId::kTypeChar, 64, 1, true, false),
+                                     new Column("account", TypeId::kTypeFloat, 2, true, false)};
+    Schema schema(columns, true);
+    // create row
+    std::vector<Field> fields = {Field(TypeId::kTypeInt, 188),
+                                 Field(TypeId::kTypeChar, const_cast<char *>("minisql"), strlen("minisql"), false),
+                                 Field(TypeId::kTypeFloat, 19.99f)};
+    Row row(fields);
+
+    char buffer[PAGE_SIZE];
+    memset(buffer, 0, sizeof(buffer));
+    // Serialize them
+    char *p = buffer;
+
+    // column
+    for (auto column : columns) {
+        char *before_c = p;
+        p += column->SerializeTo(p);
+        EXPECT_EQ(p - before_c, column->GetSerializedSize());
+    }
+
+    // row
+    char *before_r = p;
+    p += row.SerializeTo(p, &schema);
+    EXPECT_EQ(p - before_r, row.GetSerializedSize(&schema));
+
+    // schema
+    char *before_s = p;
+    p += schema.SerializeTo(p);
+    EXPECT_EQ(p - before_s, schema.GetSerializedSize());
+
+    uint32_t ofs = 0;
+    // Deserialize column
+    Column *cp = nullptr;
+    for (int i = 0; i < 3; i++) {
+        ofs += Column::DeserializeFrom(buffer + ofs, cp);
+        ASSERT(true, cp->CompareEqualTo(columns[i]));
+        delete cp;
+        cp = nullptr;
+    }
+
+    // Deserialize row
+    vector<Field> null_fields;
+    Row rp = Row(null_fields);
+    ofs += rp.DeserializeFrom(buffer + ofs, &schema);
+    ASSERT(true, rp.CompareEqualTo(&row));
+
+    // Deserialize schema
+    Schema *sp = nullptr;
+    ofs += sp->DeserializeFrom(buffer + ofs, sp);
+    ASSERT(true, sp->CompareEqualTo(&schema));
+}
+
