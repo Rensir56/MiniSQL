@@ -8,21 +8,21 @@
  * TODO: Student Implement
  */
 bool BPlusTreePage::IsLeafPage() const {
-  return this->page_type_ == IndexPageType::LEAF_PAGE;
+  return false;
 }
 
 /**
  * TODO: Student Implement
  */
 bool BPlusTreePage::IsRootPage() const {
-  return this->parent_page_id_ == INVALID_PAGE_ID;
+  return false;
 }
 
 /**
  * TODO: Student Implement
  */
 void BPlusTreePage::SetPageType(IndexPageType page_type) {
-  this->page_type_ = page_type;
+
 }
 
 int BPlusTreePage::GetKeySize() const {
@@ -56,14 +56,14 @@ void BPlusTreePage::IncreaseSize(int amount) {
  * TODO: Student Implement
  */
 int BPlusTreePage::GetMaxSize() const {
-  return this->max_size_;
+  return 0;
 }
 
 /**
  * TODO: Student Implement
  */
 void BPlusTreePage::SetMaxSize(int size) {
-  this->max_size_ = size;
+
 }
 
 /*
@@ -74,7 +74,7 @@ void BPlusTreePage::SetMaxSize(int size) {
  * TODO: Student Implement
  */
 int BPlusTreePage::GetMinSize() const {
-  return this->max_size_ / 2;
+  return 0;
 }
 
 /*

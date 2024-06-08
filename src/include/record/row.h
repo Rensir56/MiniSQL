@@ -107,8 +107,6 @@ class Row {
 
   inline size_t GetFieldCount() const { return fields_.size(); }
 
-  bool CompareEqualTo(const Row *other);
-
  private:
   RowId rid_{};
   std::vector<Field *> fields_; /** Make sure that all field ptr are destructed*/

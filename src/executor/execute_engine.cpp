@@ -17,15 +17,6 @@
 #include "planner/planner.h"
 #include "utils/utils.h"
 
-// why not
-#include "parser/syntax_tree_printer.h"
-extern "C" {
-int yyparse(void);
-//FILE *yyin;
-#include "parser/minisql_lex.h"
-#include "parser/parser.h"
-}
-
 ExecuteEngine::ExecuteEngine() {
   char path[] = "./databases";
   DIR *dir;
@@ -348,43 +339,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateTable" << std::endl;
 #endif
-    // get table name and columns information
-    string table_name = ast->child_->val_;
-    vector<Column *> columns;
-
-    pSyntaxNode column_node = ast->child_->next_;
-    while (column_node != nullptr) {
-        Column *new_column;
-        Column::DeserializeFrom(column_node->val_, new_column);
-        columns.push_back(new_column);
-        column_node = column_node->next_->next_;
-    }
-
-    // check if the table already exists
-    if (current_db_.empty()) {
-        cout << "No database selected" << endl;
-        return DB_FAILED;
-    }
-
-    TableInfo* new_table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, new_table) == DB_SUCCESS) {
-        cout << "Table already exists" << endl;
-        return DB_ALREADY_EXIST;
-    }
-
-    // create
-    // what's the schema?? to be done
-    Schema *test_schema = new Schema(columns, true);
-    if (dbs_[current_db_]->catalog_mgr_->CreateTable(table_name, test_schema, context->GetTransaction(),new_table) != DB_SUCCESS) {
-        delete new_table;
-        cout << "Failed to create table" << endl;
-        return DB_FAILED;
-    }
-
-    cout << "Table created successfully" << endl;
-
-  return DB_SUCCESS;
+  return DB_FAILED;
 }
 
 /**
@@ -394,28 +349,7 @@ dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropTable" << std::endl;
 #endif
-
-    string table_name = ast->child_->val_;
-
-    if (current_db_.empty()) {
-        cout << "No database selected" << endl;
-        return DB_FAILED;
-    }
-
-    TableInfo* new_table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, new_table) == DB_SUCCESS) {
-        cout << "Table already exists" << endl;
-        return DB_ALREADY_EXIST;
-    }
-
-    if (dbs_[current_db_]->catalog_mgr_->DropTable(table_name) != DB_SUCCESS) {
-        cout << "Failed to drop table" << endl;
-        return DB_FAILED;
-    }
-
-    cout << "Table dropped successfully" << endl;
-    return DB_SUCCESS;
+ return DB_FAILED;
 }
 
 /**
@@ -425,38 +359,7 @@ dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *conte
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteShowIndexes" << std::endl;
 #endif
-
-    string table_name = ast->child_->val_;
-
-    if (current_db_.empty()) {
-        cout << "No database selected" << endl;
-        return DB_FAILED;
-    }
-
-    TableInfo* new_table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, new_table) != DB_SUCCESS) {
-        cout << "Table does not exists" << endl;
-        return DB_NOT_EXIST;
-    }
-
-    vector<IndexInfo*> indexes;
-    if (dbs_[current_db_]->catalog_mgr_->GetTableIndexes(table_name, indexes) != DB_SUCCESS) {
-        cout << "Failed to get indexes" << endl;
-    }
-
-    // Display the indexes
-    if (indexes.empty()) {
-        cout << "No indexes found for table" << table_name << endl;
-    } else {
-        cout << "Indexes for table " << table_name << ":" << endl;
-        for (const auto& index : indexes) {
-            // I don't know how to display it, leave it alone
-            cout << "Index Name: " << index->GetIndexName() << endl;
-        }
-    }
-
-    return DB_SUCCESS;
+  return DB_FAILED;
 }
 
 /**
@@ -466,56 +369,7 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateIndex" << std::endl;
 #endif
-
-    // extract, can be changed
-    string index_name = ast->child_->val_;
-    string table_name = ast->child_->next_->val_;
-    string column_name = ast->child_->next_->next_->val_;
-
-    pSyntaxNode meta_data = ast->child_->next_->next_->next_;
-    IndexMetadata *indexMetadata;
-    IndexMetadata::DeserializeFrom(meta_data->val_, indexMetadata);
-
-    string index_type = ast->child_->next_->next_->next_->next_->val_;
-
-    if (current_db_.empty()) {
-        cout << "No database selected" << endl;
-        return DB_FAILED;
-    }
-
-
-    TableInfo* table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, table) != DB_SUCCESS) {
-        cout << "Table does not exists" << endl;
-        return DB_NOT_EXIST;
-    }
-
-    IndexInfo* new_index = IndexInfo::Create();
-    if (dbs_[current_db_]->catalog_mgr_->GetIndex(table_name, index_name, new_index) != DB_SUCCESS) {
-        cout << "Index with the same name already exists" << endl;
-        return DB_FAILED;
-    }
-
-    // what's the metadata
-
-    new_index->Init(indexMetadata, table, dbs_[current_db_]->bpm_);
-
-    // test for index_key
-    vector<string> index_keys;
-    string a = "test";
-    string b = "what";
-    index_keys.push_back(a);
-    index_keys.push_back(b);
-
-    if (dbs_[current_db_]->catalog_mgr_->CreateIndex(table_name, index_name, index_keys, context->GetTransaction(), new_index, index_type) != DB_SUCCESS) {
-        delete new_index;
-        cout << "Failed to create index" << endl;
-        return DB_FAILED;
-    }
-
-    cout << "Index created successfully" << endl;
-    return DB_SUCCESS;
+  return DB_FAILED;
 }
 
 /**
@@ -525,28 +379,7 @@ dberr_t ExecuteEngine::ExecuteDropIndex(pSyntaxNode ast, ExecuteContext *context
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropIndex" << std::endl;
 #endif
-
-    string table_name = ast->child_->val_;
-    string index_name = ast->child_->child_->val_;
-
-    if (current_db_.empty()) {
-        cout << "No database selected" << endl;
-        return DB_FAILED;
-    }
-
-    IndexInfo* index = IndexInfo::Create();
-    if (dbs_[current_db_]->catalog_mgr_->GetIndex(table_name, index_name, index) != DB_SUCCESS) {
-        cout << "Index does not exist" << endl;
-        return DB_NOT_EXIST;
-    }
-
-    if (dbs_[current_db_]->catalog_mgr_->DropIndex(table_name, index_name) != DB_SUCCESS) {
-        cout << "Failed to drop index" << endl;
-        return DB_FAILED;
-    }
-
-    cout << "Index dropped successfully" << endl;
-    return DB_SUCCESS;
+  return DB_FAILED;
 }
 
 dberr_t ExecuteEngine::ExecuteTrxBegin(pSyntaxNode ast, ExecuteContext *context) {
@@ -577,47 +410,7 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteExecfile" << std::endl;
 #endif
-    string filename = ast->child_->val_;
-
-    ifstream infile(filename);
-    if (!infile.is_open()) {
-        cout << "Failed to open file: " << filename << endl;
-        return DB_FAILED;
-    }
-
-    string line;
-    while (getline(infile, line)) {
-        YY_BUFFER_STATE bp = yy_scan_string(line.c_str());
-        if (bp == nullptr) {
-            LOG(ERROR) << "Failed to create yy buffer state." << endl;
-            return DB_FAILED;
-        }
-        yy_switch_to_buffer(bp);
-
-        MinisqlParserInit();
-
-        yyparse();
-
-        if (MinisqlParserGetError()) {
-            printf("%s\n", MinisqlParserGetErrorMessage());
-            return DB_FAILED;
-        }
-
-        auto result = Execute(MinisqlGetParserRootNode());
-        if (result == DB_FAILED) {
-            return DB_FAILED;
-        }
-
-        MinisqlParserFinish();
-        yy_delete_buffer(bp);
-        yylex_destroy();
-
-        ExecuteInformation(result);
-        if (result == DB_QUIT) {
-            break;
-        }
-    }
-  return DB_SUCCESS;
+  return DB_FAILED;
 }
 
 /**
@@ -627,9 +420,5 @@ dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteQuit" << std::endl;
 #endif
-    for (auto& db : dbs_) {
-        delete db.second;
-    }
-    dbs_.clear();
- return DB_QUIT;
+ return DB_FAILED;
 }
