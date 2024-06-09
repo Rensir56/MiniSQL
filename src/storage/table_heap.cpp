@@ -6,22 +6,26 @@
 bool TableHeap::InsertTuple(Row &row, Txn *txn) {
 
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
-  if (page == nullptr) {
-    page_id_t page_id;
-    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->NewPage(page_id));
-    this->first_page_id_ = page_id;
-  }
+//  if (page == nullptr) {
+//    page_id_t page_id;
+//    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->NewPage(page_id));
+//    this->first_page_id_ = page_id;
+//  }
   bool good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
 
   while (!good_insert) {
-    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetNextPageId()));
-    good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
-    if (page->GetNextPageId() == INVALID_PAGE_ID && !good_insert) {
-      page_id_t new_page_id;
-      page = reinterpret_cast<TablePage *>(buffer_pool_manager_->NewPage(new_page_id));
+    page_id_t next_id = page->GetNextPageId();
+    if (next_id == INVALID_PAGE_ID) {
+      page_id_t now_id = page->GetTablePageId();
+      page_id_t new_id;
+      page = reinterpret_cast<TablePage *>(buffer_pool_manager_->NewPage(new_id));
+      page->Init(new_id, now_id, log_manager_, txn);
+      good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
+    } else {
+      page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(next_id));
+      good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
     }
   }
-
   return true;
 }
 
