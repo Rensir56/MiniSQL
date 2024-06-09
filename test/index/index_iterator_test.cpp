@@ -9,8 +9,8 @@ TEST(BPlusTreeTests, IndexIteratorTest) {
   // Init engine
   DBStorageEngine engine(db_name);
   std::vector<Column *> columns = {
-      new Column("int", TypeId::kTypeInt, 0, false, false),
-  };
+    new Column("int", TypeId::kTypeInt, 0, false, false),
+};
   Schema *table_schema = new Schema(columns);
   KeyManager KP(table_schema, 16);
   BPlusTree tree(0, engine.bpm_, KP);
@@ -52,4 +52,5 @@ TEST(BPlusTreeTests, IndexIteratorTest) {
     ASSERT_TRUE(KP.CompareKeys(not_delete_key[i++], (*iter).first) == 0);  // if equal, CompareKeys return 0
     EXPECT_EQ(RowId((2 * i - 1) * 100), (*iter).second);
   }
+  ASSERT_EQ(25, i);
 }
