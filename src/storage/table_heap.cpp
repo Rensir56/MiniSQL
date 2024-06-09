@@ -3,7 +3,27 @@
 /**
  * TODO: Student Implement
  */
-bool TableHeap::InsertTuple(Row &row, Txn *txn) { return false; }
+bool TableHeap::InsertTuple(Row &row, Txn *txn) {
+
+  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+  if (page == nullptr) {
+    page_id_t page_id;
+    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->NewPage(page_id));
+    this->first_page_id_ = page_id;
+  }
+  bool good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
+
+  while (!good_insert) {
+    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetNextPageId()));
+    good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
+    if (page->GetNextPageId() == INVALID_PAGE_ID && !good_insert) {
+      page_id_t new_page_id;
+      page = reinterpret_cast<TablePage *>(buffer_pool_manager_->NewPage(new_page_id));
+    }
+  }
+
+  return true;
+}
 
 bool TableHeap::MarkDelete(const RowId &rid, Txn *txn) {
   // Find the page which contains the tuple.
@@ -23,7 +43,18 @@ bool TableHeap::MarkDelete(const RowId &rid, Txn *txn) {
 /**
  * TODO: Student Implement
  */
-bool TableHeap::UpdateTuple(Row &row, const RowId &rid, Txn *txn) { return false; }
+bool TableHeap::UpdateTuple(Row &row, const RowId &rid, Txn *txn) {
+  Row old_row(row);
+  page_id_t page_id = rid.GetPageId();
+  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id));
+  if (page == nullptr) {
+    return false;
+  }
+  if (page->UpdateTuple(row, &old_row, schema_, txn, lock_manager_, log_manager_))
+    return true;
+  else
+    return false;
+}
 
 /**
  * TODO: Student Implement
@@ -31,6 +62,12 @@ bool TableHeap::UpdateTuple(Row &row, const RowId &rid, Txn *txn) { return false
 void TableHeap::ApplyDelete(const RowId &rid, Txn *txn) {
   // Step1: Find the page which contains the tuple.
   // Step2: Delete the tuple from the page.
+  page_id_t page_id = rid.GetPageId();
+  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id));
+  if (page == nullptr) {
+    return;
+  }
+  page->ApplyDelete(rid, txn, log_manager_);
 }
 
 void TableHeap::RollbackDelete(const RowId &rid, Txn *txn) {
@@ -47,7 +84,20 @@ void TableHeap::RollbackDelete(const RowId &rid, Txn *txn) {
 /**
  * TODO: Student Implement
  */
-bool TableHeap::GetTuple(Row *row, Txn *txn) { return false; }
+bool TableHeap::GetTuple(Row *row, Txn *txn) {
+  RowId rid = row->GetRowId();
+  page_id_t page_id = rid.GetPageId();
+  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page_id));
+
+  if (page == nullptr) {
+    return false;
+  }
+
+  if (page->GetTuple(row, schema_, txn, lock_manager_))
+    return true;
+  else
+    return false;
+}
 
 void TableHeap::DeleteTable(page_id_t page_id) {
   if (page_id != INVALID_PAGE_ID) {
@@ -64,9 +114,48 @@ void TableHeap::DeleteTable(page_id_t page_id) {
 /**
  * TODO: Student Implement
  */
-TableIterator TableHeap::Begin(Txn *txn) { return TableIterator(nullptr, RowId(), nullptr); }
+TableIterator TableHeap::Begin(Txn *txn) {
+  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+  if (page == nullptr)
+    return TableIterator(nullptr, RowId(), nullptr);
+
+  RowId rowId;
+  while (!page->GetFirstTupleRid(&rowId) && page->GetNextPageId() != INVALID_PAGE_ID) {
+    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetNextPageId()));
+  }
+  if (page->GetFirstTupleRid(&rowId))
+    return TableIterator(this, rowId, txn);
+
+  return TableIterator(nullptr, RowId(), nullptr);
+}
 
 /**
  * TODO: Student Implement
  */
-TableIterator TableHeap::End() { return TableIterator(nullptr, RowId(), nullptr); }
+TableIterator TableHeap::End() {
+  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+  if (page == nullptr)
+    return TableIterator(nullptr, RowId(), nullptr);
+
+  while (page->GetNextPageId() != INVALID_PAGE_ID) {
+    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetNextPageId()));
+  }
+
+  RowId rowId;
+  while (!page->GetFirstTupleRid(&rowId) && page != reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_))) {
+    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetPrevPageId()));
+  }
+  if (!page->GetFirstTupleRid(&rowId) && page == reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_)))
+    return TableIterator(nullptr, RowId(), nullptr);
+
+  // rowId got
+  RowId cur_rid(rowId);
+  RowId next_rid;
+  while (1) {
+    if (!page->GetNextTupleRid(cur_rid, &next_rid))
+      break;
+    cur_rid = next_rid;
+  }
+
+  return TableIterator(this, cur_rid, nullptr);   // why no txn?
+}
