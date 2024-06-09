@@ -2,6 +2,8 @@
 
 // TODO: Update interface implementation if apply recovery
 
+
+
 void TablePage::Init(page_id_t page_id, page_id_t prev_id, LogManager *log_mgr, Txn *txn) {
   memcpy(GetData(), &page_id, sizeof(page_id));
   SetPrevPageId(prev_id);
@@ -62,7 +64,7 @@ bool TablePage::MarkDelete(const RowId &rid, Txn *txn, LockManager *lock_manager
   return true;
 }
 
-bool TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn, LockManager *lock_manager,
+TABLE_PAGE_UPDATE TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn, LockManager *lock_manager,
                             LogManager *log_manager) {
   ASSERT(old_row != nullptr && old_row->GetRowId().Get() != INVALID_ROWID.Get(), "invalid old row.");
   uint32_t serialized_size = new_row.GetSerializedSize(schema);
@@ -70,16 +72,16 @@ bool TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn
   uint32_t slot_num = old_row->GetRowId().GetSlotNum();
   // If the slot number is invalid, abort.
   if (slot_num >= GetTupleCount()) {
-    return false;
+    return TABLE_PAGE_UPDATE::TABLE_PAGE_UPDATE_FAIL;
   }
   uint32_t tuple_size = GetTupleSize(slot_num);
   // If the tuple is deleted, abort.
   if (IsDeleted(tuple_size)) {
-    return false;
+    return TABLE_PAGE_UPDATE::TABLE_PAGE_UPDATE_FAIL;
   }
   // If there is not enough space to update, we need to update via delete followed by an insert (not enough space).
   if (GetFreeSpaceRemaining() + tuple_size < serialized_size) {
-    return false;
+    return TABLE_PAGE_UPDATE::TABLE_PAGE_UPDATE_NEW_PAGE;
   }
   // Copy out the old value.
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
@@ -100,7 +102,7 @@ bool TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn
       SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size - new_row.GetSerializedSize(schema));
     }
   }
-  return true;
+  return TABLE_PAGE_UPDATE::TABLE_PAGE_UPDATE_SUCCESS;
 }
 
 void TablePage::ApplyDelete(const RowId &rid, Txn *txn, LogManager *log_manager) {
@@ -109,7 +111,7 @@ void TablePage::ApplyDelete(const RowId &rid, Txn *txn, LogManager *log_manager)
 
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
   uint32_t tuple_size = GetTupleSize(slot_num);
-  // Check if this is a delete operation, i.e. commit a delete.
+  // Check if this is a delete operation, i.e. commit a deletion.
   if (IsDeleted(tuple_size)) {
     tuple_size = UnsetDeletedFlag(tuple_size);
   }
