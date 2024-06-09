@@ -31,7 +31,6 @@ bool TableHeap::InsertTuple(Row &row, Txn *txn) {
       buffer_pool_manager_->UnpinPage(page->GetTablePageId(), true);
     }
   }
-
   return true;
 }
 
