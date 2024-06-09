@@ -152,6 +152,23 @@ void InternalPage::MoveHalfTo(InternalPage *recipient, BufferPoolManager *buffer
  *
  */
 void InternalPage::CopyNFrom(void *src, int size, BufferPoolManager *buffer_pool_manager) {
+  // Calculate the starting position for copying in the current page
+  int start_position = GetSize();
+  // Copy the entries from the source to the current page
+  PairCopy(PairPtrAt(start_position), src, size);
+  // Update the size of the current page
+  IncreaseSize(size);
+  // Update the parent page id of the copied entries and persist the changes
+  for (int i = start_position; i < GetSize(); i++) {
+    page_id_t child_page_id = ValueAt(i);
+    Page *child_page = buffer_pool_manager->FetchPage(child_page_id);
+    if (child_page == nullptr) {
+      throw std::runtime_error("Fail to fetch page");
+    }
+    BPlusTreePage *child_tree_page = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
+    child_tree_page->SetParentPageId(GetPageId());
+    buffer_pool_manager->UnpinPage(child_page_id, true);
+  }
 }
 
 /*****************************************************************************
@@ -163,6 +180,14 @@ void InternalPage::CopyNFrom(void *src, int size, BufferPoolManager *buffer_pool
  * NOTE: store key&value pair continuously after deletion
  */
 void InternalPage::Remove(int index) {
+  // Check if the index is valid
+  if (index < 0 || index >= GetSize()) {
+    throw std::out_of_range("Index out of range");
+  }
+  // Move all pairs after the index one position to the left
+  PairCopy(PairPtrAt(index), PairPtrAt(index + 1), (GetSize() - index - 1));
+  // Decrease the size of the page
+  IncreaseSize(- 1);
 }
 
 /*
@@ -170,7 +195,16 @@ void InternalPage::Remove(int index) {
  * NOTE: only call this method within AdjustRoot()(in b_plus_tree.cpp)
  */
 page_id_t InternalPage::RemoveAndReturnOnlyChild() {
-  return 0;
+  // Check if the size is 1
+  if (GetSize() != 1) {
+    throw std::logic_error("This method should only be called when there is only one key-value pair in the internal page.");
+  }
+  // Get and save the value of the only key-value pair
+  page_id_t value = ValueAt(0);
+  // Set the size to 0
+  SetSize(0);
+  // Return the saved value
+  return value;
 }
 
 /*****************************************************************************
@@ -184,6 +218,9 @@ page_id_t InternalPage::RemoveAndReturnOnlyChild() {
  * pages that are moved to the recipient
  */
 void InternalPage::MoveAllTo(InternalPage *recipient, GenericKey *middle_key, BufferPoolManager *buffer_pool_manager) {
+  SetKeyAt(0, middle_key);
+  recipient->CopyNFrom(PairPtrAt(0), GetSize(), buffer_pool_manager);
+  SetSize(0);
 }
 
 /*****************************************************************************
@@ -197,8 +234,9 @@ void InternalPage::MoveAllTo(InternalPage *recipient, GenericKey *middle_key, Bu
  * You also need to use BufferPoolManager to persist changes to the parent page id for those
  * pages that are moved to the recipient
  */
-void InternalPage::MoveFirstToEndOf(InternalPage *recipient, GenericKey *middle_key,
-                                    BufferPoolManager *buffer_pool_manager) {
+void InternalPage::MoveFirstToEndOf(InternalPage *recipient, GenericKey *middle_key, BufferPoolManager *buffer_pool_manager) {
+  recipient->CopyLastFrom(middle_key, ValueAt(0), buffer_pool_manager);
+  Remove(0);
 }
 
 /* Append an entry at the end.
@@ -206,6 +244,20 @@ void InternalPage::MoveFirstToEndOf(InternalPage *recipient, GenericKey *middle_
  * So I need to 'adopt' it by changing its parent page id, which needs to be persisted with BufferPoolManger
  */
 void InternalPage::CopyLastFrom(GenericKey *key, const page_id_t value, BufferPoolManager *buffer_pool_manager) {
+  // Insert the middle key at the end of the recipient page
+  SetKeyAt(GetSize(), key);
+  // Insert the value at the end of the recipient page
+  SetValueAt(GetSize(),value);
+  // Update the size of the recipient page
+  IncreaseSize(1);
+  // Update the parent page id of the moved page and persist the change
+  Page *child_page = buffer_pool_manager->FetchPage(value);
+  if (child_page == nullptr) {
+    throw std::runtime_error("Fail to fetch page");
+  }
+  BPlusTreePage *child_tree_page = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
+  child_tree_page->SetParentPageId(GetPageId());
+  buffer_pool_manager->UnpinPage(value, true);
 }
 
 /*
@@ -215,8 +267,11 @@ void InternalPage::CopyLastFrom(GenericKey *key, const page_id_t value, BufferPo
  * You also need to use BufferPoolManager to persist changes to the parent page id for those pages that are
  * moved to the recipient
  */
-void InternalPage::MoveLastToFrontOf(InternalPage *recipient, GenericKey *middle_key,
-                                     BufferPoolManager *buffer_pool_manager) {
+void InternalPage::MoveLastToFrontOf(InternalPage *recipient, GenericKey *middle_key, BufferPoolManager *buffer_pool_manager) {
+  recipient->SetKeyAt(0, middle_key);
+  recipient->CopyFirstFrom(ValueAt(GetSize() - 1), buffer_pool_manager);
+  recipient->SetKeyAt(0, KeyAt(GetSize() - 1));
+  Remove(GetSize() - 1);
 }
 
 /* Append an entry at the beginning.
@@ -224,4 +279,18 @@ void InternalPage::MoveLastToFrontOf(InternalPage *recipient, GenericKey *middle
  * So I need to 'adopt' it by changing its parent page id, which needs to be persisted with BufferPoolManger
  */
 void InternalPage::CopyFirstFrom(const page_id_t value, BufferPoolManager *buffer_pool_manager) {
+  // Move all pairs in the current page one position to the right
+  PairCopy(PairPtrAt(1), PairPtrAt(0), GetSize());
+  // Insert the value at the beginning of the current page
+  SetValueAt(0, value);
+  // Update the size of the current page
+  IncreaseSize(1);
+  // Update the parent page id of the moved page and persist the change
+  Page *child_page = buffer_pool_manager->FetchPage(value);
+  if (child_page == nullptr) {
+    throw std::runtime_error("Fail to fetch page");
+  }
+  BPlusTreePage *child_tree_page = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
+  child_tree_page->SetParentPageId(GetPageId());
+  buffer_pool_manager->UnpinPage(child_page->GetPageId(), true);
 }
