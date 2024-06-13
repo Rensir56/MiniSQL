@@ -27,6 +27,13 @@
 #include "record/row.h"
 #include "recovery/log_manager.h"
 
+
+enum class TABLE_PAGE_UPDATE {
+  TABLE_PAGE_UPDATE_SUCCESS = 0,
+  TABLE_PAGE_UPDATE_NEW_PAGE,
+  TABLE_PAGE_UPDATE_FAIL
+};
+
 class TablePage : public Page {
  public:
   void Init(page_id_t page_id, page_id_t prev_id, LogManager *log_mgr, Txn *txn);
@@ -49,7 +56,7 @@ class TablePage : public Page {
 
   bool MarkDelete(const RowId &rid, Txn *txn, LockManager *lock_manager, LogManager *log_manager);
 
-  bool UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn, LockManager *lock_manager,
+  TABLE_PAGE_UPDATE UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn, LockManager *lock_manager,
                    LogManager *log_manager);
 
   void ApplyDelete(const RowId &rid, Txn *txn, LogManager *log_manager);
