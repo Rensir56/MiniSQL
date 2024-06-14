@@ -28,6 +28,7 @@ void LeafPage::Init(page_id_t page_id, page_id_t parent_id, int key_size, int ma
   SetParentPageId(parent_id);
   SetMaxSize(max_size);
   SetKeySize(key_size);
+  next_page_id_ = INVALID_PAGE_ID;
 }
 
 /**
@@ -53,7 +54,27 @@ void LeafPage::SetNextPageId(page_id_t next_page_id) {
  * 二分查找
  */
 int LeafPage::KeyIndex(const GenericKey *key, const KeyManager &KM) {
-  return 0;
+  int left = 1;  // Start from the second key
+  int right = GetSize() - 1;  // GetSize() returns the number of keys
+  int res = INVALID_PAGE_ID;
+
+  while (left <= right) {
+    int mid = (left + right) / 2;
+    GenericKey *mid_key = KeyAt(mid);
+
+    int cmp = KM.CompareKeys(mid_key, key);
+    if (cmp == 0) {
+      // Key is found, return the corresponding page_id
+      return mid;
+    } else if (cmp < 0) {
+      left = mid + 1;
+    } else {
+      res = mid;
+      right = mid - 1;
+    }
+  }
+  // Key is not found, return the page_id of the child that could contain the key
+  return res;
 }
 
 /*
@@ -97,7 +118,22 @@ std::pair<GenericKey *, RowId> LeafPage::GetItem(int index) { return {KeyAt(inde
  * @return page size after insertion
  */
 int LeafPage::Insert(GenericKey *key, const RowId &value, const KeyManager &KM) {
-  return 0;
+  // Find the position to insert the new key-value pair
+  if (GetSize() >= GetMaxSize()) return GetSize() + 1;
+  int index = KeyIndex(key, KM);
+  if (index == INVALID_PAGE_ID) {
+    index = GetSize();
+  } else {
+    // Move all pairs in the current page one position to the right from the index
+    PairCopy(PairPtrAt(index + 1), PairPtrAt(index), GetSize() - index);
+  }
+  // Insert the new key-value pair at the found position
+  SetKeyAt(index, key);
+  SetValueAt(index, value);
+  // Update the size of the current page
+  IncreaseSize(1);
+  // Return the new size of the page
+  return GetSize();
 }
 
 /*****************************************************************************
@@ -107,12 +143,19 @@ int LeafPage::Insert(GenericKey *key, const RowId &value, const KeyManager &KM) 
  * Remove half of key & value pairs from this page to "recipient" page
  */
 void LeafPage::MoveHalfTo(LeafPage *recipient) {
+  int half = GetMinSize();
+  SetSize(half);
+  recipient->CopyNFrom(PairPtrAt(half), GetMaxSize() - half);
 }
 
 /*
  * Copy starting from items, and copy {size} number of elements into me.
  */
 void LeafPage::CopyNFrom(void *src, int size) {
+  // Copy the data from the source address to the target address in the current page
+  PairCopy(PairPtrAt(GetSize()),src,size);
+  // Update the size of the current page
+  IncreaseSize(size);
 }
 
 /*****************************************************************************
@@ -124,6 +167,15 @@ void LeafPage::CopyNFrom(void *src, int size) {
  * If the key does not exist, then return false
  */
 bool LeafPage::Lookup(const GenericKey *key, RowId &value, const KeyManager &KM) {
+  // Find the index of the key in the leaf page
+  int index = KeyIndex(key, KM);
+  // If the index is valid and the key at the index is equal to the given key
+  if (index < GetSize() && index >= 0 && KM.CompareKeys(KeyAt(index), key) == 0) {
+    // Store the value at the index in "value" and return true
+    value = ValueAt(index);
+    return true;
+  }
+  // If the key does not exist, return false
   return false;
 }
 
@@ -137,7 +189,17 @@ bool LeafPage::Lookup(const GenericKey *key, RowId &value, const KeyManager &KM)
  * @return  page size after deletion
  */
 int LeafPage::RemoveAndDeleteRecord(const GenericKey *key, const KeyManager &KM) {
-  return -1;
+  // Find the index of the key in the leaf page
+  int index = KeyIndex(key, KM);
+  // If the index is valid and the key at the index is equal to the given key
+  if (index < GetSize() && index >= 0 && KM.CompareKeys(KeyAt(index), key) == 0) {
+    // Move all pairs in the current page one position to the left from the index
+    PairCopy(PairPtrAt(index), PairPtrAt(index + 1), GetSize() - index - 1);
+    // Decrease the size of the current page
+    IncreaseSize(-1);
+  }
+  // Return the size of the page
+  return GetSize();
 }
 
 /*****************************************************************************
@@ -148,6 +210,12 @@ int LeafPage::RemoveAndDeleteRecord(const GenericKey *key, const KeyManager &KM)
  * to update the next_page id in the sibling page
  */
 void LeafPage::MoveAllTo(LeafPage *recipient) {
+  // Copy all pairs from the current page to the end of the recipient page
+  recipient->CopyNFrom(PairPtrAt(0), GetSize());
+  // Set the next_page_id of the recipient page to the next_page_id of the current page
+  recipient->SetNextPageId(GetNextPageId());
+  // Set the size of the current page to 0
+  SetSize(0);
 }
 
 /*****************************************************************************
@@ -158,18 +226,31 @@ void LeafPage::MoveAllTo(LeafPage *recipient) {
  *
  */
 void LeafPage::MoveFirstToEndOf(LeafPage *recipient) {
+  // Copy the first key-value pair from the current page to the end of the recipient page
+  recipient->CopyLastFrom(KeyAt(0), ValueAt(0));
+  // Move all pairs in the current page one position to the left
+  PairCopy(PairPtrAt(0), PairPtrAt(1), GetSize() - 1);
+  // Decrease the size of the current page
+  IncreaseSize(-1);
 }
 
 /*
  * Copy the item into the end of my item list. (Append item to my array)
  */
 void LeafPage::CopyLastFrom(GenericKey *key, const RowId value) {
+  SetKeyAt(GetSize(), key);
+  SetValueAt(GetSize(), value);
+  IncreaseSize(1);
 }
 
 /*
  * Remove the last key & value pair from this page to "recipient" page.
  */
 void LeafPage::MoveLastToFrontOf(LeafPage *recipient) {
+  // Copy the last key-value pair from the current page to the beginning of the recipient page
+  recipient->CopyFirstFrom(KeyAt(GetSize() - 1), ValueAt(GetSize() - 1));
+  // Decrease the size of the current page
+  IncreaseSize(-1);
 }
 
 /*
@@ -177,4 +258,8 @@ void LeafPage::MoveLastToFrontOf(LeafPage *recipient) {
  *
  */
 void LeafPage::CopyFirstFrom(GenericKey *key, const RowId value) {
+  PairCopy(PairPtrAt(1),PairPtrAt(0),GetSize());
+  SetKeyAt(0, key);
+  SetValueAt(0, value);
+  IncreaseSize(1);
 }
