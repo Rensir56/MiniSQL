@@ -152,7 +152,7 @@ void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {
 
     if (waits_for_.find(t1) == waits_for_.end()) {
         auto &set = waits_for_[t1];
-        
+
     }
     waits_for_[t1].insert(t2);
 }
