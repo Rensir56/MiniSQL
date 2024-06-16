@@ -18,6 +18,9 @@ IndexIterator::~IndexIterator() {
  * TODO: Student Implement
  */
 
+/**
+ * TODO: Student Implement
+ */
 std::pair<GenericKey *, RowId> IndexIterator::operator*() {
   ASSERT(false, "Not implemented yet.");
 }
@@ -25,6 +28,9 @@ std::pair<GenericKey *, RowId> IndexIterator::operator*() {
  * TODO: Student Implement
  */
 
+/**
+ * TODO: Student Implement
+ */
 IndexIterator &IndexIterator::operator++() {
   ASSERT(false, "Not implemented yet.");
 }
