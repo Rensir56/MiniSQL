@@ -15,10 +15,16 @@ IndexIterator::~IndexIterator() {
     buffer_pool_manager->UnpinPage(current_page_id, false);
 }
 
+/**
+ * TODO: Student Implement
+ */
 std::pair<GenericKey *, RowId> IndexIterator::operator*() {
   ASSERT(false, "Not implemented yet.");
 }
 
+/**
+ * TODO: Student Implement
+ */
 IndexIterator &IndexIterator::operator++() {
   ASSERT(false, "Not implemented yet.");
 }
