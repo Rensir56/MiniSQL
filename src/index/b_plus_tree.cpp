@@ -65,9 +65,9 @@ bool BPlusTree::IsEmpty() const {
  **/
 bool BPlusTree::GetValue(const GenericKey *key, std::vector<RowId> &result, Txn *transaction) {
   // Check the transaction state
-  if (transaction->GetState() == TxnState::kAborted) {
-    throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
-  }
+  // if (transaction->GetState() == TxnState::kAborted) {
+  //   throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
+  // }
 
   // Find the leaf page that contains the input key
   if (IsEmpty()) return false;
@@ -76,21 +76,21 @@ bool BPlusTree::GetValue(const GenericKey *key, std::vector<RowId> &result, Txn 
 
   // Lock the page for read
   page->RLatch();
-  transaction->GetSharedLockSet().insert(RowId(leaf_node->GetPageId()));
+  // transaction->GetSharedLockSet().insert(RowId(leaf_node->GetPageId()));
 
   RowId rid;
   // If the key is found in the leaf page
   if (leaf_node->Lookup(key, rid, processor_)) {
     // Add the value associated with the key to the result vector
     page->RUnlatch();
-    transaction->GetSharedLockSet().erase(RowId(leaf_node->GetPageId()));
+    // transaction->GetSharedLockSet().erase(RowId(leaf_node->GetPageId()));
     result.push_back(rid);
     buffer_pool_manager_->UnpinPage(leaf_node->GetPageId(), false);
     return true;
   } else {
     // If the key is not found in the leaf page
     page->RUnlatch();
-    transaction->GetSharedLockSet().erase(RowId(leaf_node->GetPageId()));
+    // transaction->GetSharedLockSet().erase(RowId(leaf_node->GetPageId()));
     buffer_pool_manager_->UnpinPage(leaf_node->GetPageId(), false);
     return false;
   }
@@ -154,9 +154,9 @@ void BPlusTree::StartNewTree(GenericKey *key, const RowId &value) {
  **/
 bool BPlusTree::InsertIntoLeaf(GenericKey *key, const RowId &value, Txn *transaction) {
   // Check the transaction state
-  if (transaction->GetState() == TxnState::kAborted) {
-    throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
-  }
+  // if (transaction->GetState() == TxnState::kAborted) {
+  //   throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
+  // }
 
   // Find the leaf page that should contain the input key
   Page *page = FindLeafPage(key, root_page_id_);
@@ -164,14 +164,14 @@ bool BPlusTree::InsertIntoLeaf(GenericKey *key, const RowId &value, Txn *transac
 
   // Lock the page for write
   page->WLatch();
-  transaction->GetExclusiveLockSet().insert(RowId(leaf_node->GetPageId()));
+  // transaction->GetExclusiveLockSet().insert(RowId(leaf_node->GetPageId()));
 
   // Check if the key already exists in the leaf page
   RowId rid;
   if (leaf_node->Lookup(key, rid, processor_)) {
     // If the key exists, unlock the page and return false
     page->WUnlatch();
-    transaction->GetExclusiveLockSet().erase(RowId(leaf_node->GetPageId()));
+    // transaction->GetExclusiveLockSet().erase(RowId(leaf_node->GetPageId()));
     buffer_pool_manager_->UnpinPage(leaf_node->GetPageId(), false);
     return false;
   }
@@ -188,7 +188,7 @@ bool BPlusTree::InsertIntoLeaf(GenericKey *key, const RowId &value, Txn *transac
   } else {
     // Unlock the page and unpin it
     page->WUnlatch();
-    transaction->GetExclusiveLockSet().erase(RowId(leaf_node->GetPageId()));
+    // transaction->GetExclusiveLockSet().erase(RowId(leaf_node->GetPageId()));
     buffer_pool_manager_->UnpinPage(leaf_node->GetPageId(), true);
   }
   return true;
@@ -203,9 +203,9 @@ bool BPlusTree::InsertIntoLeaf(GenericKey *key, const RowId &value, Txn *transac
  */
 BPlusTreeInternalPage *BPlusTree::Split(InternalPage *node, Txn *transaction) {
   // Check the transaction state
-  if (transaction->GetState() == TxnState::kAborted) {
-    throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
-  }
+  // if (transaction->GetState() == TxnState::kAborted) {
+  //   throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
+  // }
 
   // Request a new page from the buffer pool manager
   page_id_t new_page_id;
@@ -229,9 +229,9 @@ BPlusTreeInternalPage *BPlusTree::Split(InternalPage *node, Txn *transaction) {
 
 BPlusTreeLeafPage *BPlusTree::Split(LeafPage *node, Txn *transaction) {
   // Check the transaction state
-  if (transaction->GetState() == TxnState::kAborted) {
-    throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
-  }
+  // if (transaction->GetState() == TxnState::kAborted) {
+  //   throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
+  // }
 
   // Request a new page from the buffer pool manager
   page_id_t new_page_id;
@@ -269,9 +269,9 @@ BPlusTreeLeafPage *BPlusTree::Split(LeafPage *node, Txn *transaction) {
  */
 void BPlusTree::InsertIntoParent(BPlusTreePage *old_node, GenericKey *key, BPlusTreePage *new_node, Txn *transaction) {
   // Check the transaction state
-  if (transaction->GetState() == TxnState::kAborted) {
-    throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
-  }
+  // if (transaction->GetState() == TxnState::kAborted) {
+  //   throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
+  // }
 
   // If the old node is the root
   if (old_node->IsRootPage()) {
