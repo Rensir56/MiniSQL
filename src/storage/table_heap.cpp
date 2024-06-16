@@ -150,7 +150,7 @@ void TableHeap::DeleteTable(page_id_t page_id) {
 TableIterator TableHeap::Begin(Txn *txn) {
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
   if (page == nullptr)
-    return TableIterator(nullptr, RowId(), nullptr);
+    return TableIterator(this, RowId(), nullptr);
 
   RowId rowId;
   while (!page->GetFirstTupleRid(&rowId) && page->GetNextPageId() != INVALID_PAGE_ID) {
@@ -161,40 +161,42 @@ TableIterator TableHeap::Begin(Txn *txn) {
     buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
     return TableIterator(this, rowId, txn);
   }
-  return TableIterator(nullptr, RowId(), nullptr);
+  return TableIterator(this, RowId(), nullptr);
 }
 
 /**
  * TODO: Student Implement
  */
 TableIterator TableHeap::End() {
-  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
-  if (page == nullptr)
-    return TableIterator(nullptr, RowId(), nullptr);
-
-  while (page->GetNextPageId() != INVALID_PAGE_ID) {
-    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
-    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetNextPageId()));
-  }
-
-  RowId rowId;
-  while (!page->GetFirstTupleRid(&rowId) && page->GetTablePageId() != first_page_id_) {
-    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
-    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetPrevPageId()));
-  }
-  if (!page->GetFirstTupleRid(&rowId) && page->GetTablePageId() != first_page_id_) {
-    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
-    return TableIterator(nullptr, RowId(), nullptr);
-  }
-
-  // rowId got
-  RowId cur_rid(rowId);
-  RowId next_rid;
-  while (1) {
-    if (!page->GetNextTupleRid(cur_rid, &next_rid))
-      break;
-    cur_rid = next_rid;
-  }
-  buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
-  return TableIterator(this, cur_rid, nullptr);   // why no txn?
+//  auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
+//  TableIterator iterator = TableIterator(nullptr, RowId(), nullptr);
+//  if (page == nullptr)
+//    return TableIterator(nullptr, RowId(), nullptr);
+//
+//  while (page->GetNextPageId() != INVALID_PAGE_ID) {
+//    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
+//    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetNextPageId()));
+//  }
+//  RowId rowId;
+//  while (!page->GetFirstTupleRid(&rowId) && page->GetTablePageId() != first_page_id_) {
+//    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
+//    page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(page->GetPrevPageId()));
+//  }
+//  if (!page->GetFirstTupleRid(&rowId) && page->GetTablePageId() != first_page_id_) {
+//    buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
+//    return TableIterator(nullptr, RowId(), nullptr);
+//  }
+//
+//  // rowId got
+//  RowId cur_rid(rowId);
+//  RowId next_rid;
+//  while (1) {
+//    if (!page->GetNextTupleRid(cur_rid, &next_rid))
+//      break;
+//    cur_rid = next_rid;
+//  }
+//  buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
+//
+//  return TableIterator(this, cur_rid, nullptr);   // why no txn?
+  return TableIterator(this, RowId(), nullptr);
 }

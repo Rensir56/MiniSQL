@@ -208,6 +208,9 @@ dberr_t ExecuteEngine::Execute(pSyntaxNode ast) {
     writer.EndInformation(result_set.size(), duration_time, false);
   }
   std::cout << writer.stream_.rdbuf();
+  // todo:: use shared_ptr for schema
+  if (ast->type_ == kNodeSelect)
+    delete planner.plan_->OutputSchema();
   return DB_SUCCESS;
 }
 
@@ -268,6 +271,8 @@ dberr_t ExecuteEngine::ExecuteDropDatabase(pSyntaxNode ast, ExecuteContext *cont
   remove(("./databases/" + db_name).c_str());
   delete dbs_[db_name];
   dbs_.erase(db_name);
+  if (db_name == current_db_)
+    current_db_ = "";
   return DB_SUCCESS;
 }
 

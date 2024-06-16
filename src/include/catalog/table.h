@@ -53,7 +53,8 @@ class TableMetadata {
  */
 class TableInfo {
  public:
-  static TableInfo *Create() { return new TableInfo(); }
+  static TableInfo *Create() { return new TableInfo();
+  }
 
   ~TableInfo() {
     delete table_meta_;
@@ -63,6 +64,14 @@ class TableInfo {
   void Init(TableMetadata *table_meta, TableHeap *table_heap) {
     table_meta_ = table_meta;
     table_heap_ = table_heap;
+
+    const std::vector<Column *> &old_columns = table_meta_->schema_->GetColumns();
+    std::vector<Column *> new_columns;
+    for (Column *col : old_columns) {
+      // Create new Column objects
+      new_columns.push_back(new Column(*col));
+    }
+    table_meta_->schema_ = new Schema(new_columns);
   }
 
   inline TableHeap *GetTableHeap() const { return table_heap_; }

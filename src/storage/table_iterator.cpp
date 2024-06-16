@@ -10,12 +10,14 @@ TableIterator::TableIterator(TableHeap *table_heap, RowId rid, Txn *txn) {
   this->tableHeap = table_heap;
   this->rid = rid;
   this->txn = txn;
+
 }
 
 TableIterator::TableIterator(const TableIterator &other) {
   this->tableHeap = other.tableHeap;
   this->rid = other.rid;
   this->txn = other.txn;
+  row = Row();
 }
 
 TableIterator::~TableIterator() {
@@ -39,7 +41,7 @@ bool TableIterator::operator!=(const TableIterator &itr) const {
 }
 
 const Row &TableIterator::operator*() {
-  Row row;
+  row = Row();
   row.SetRowId(this->rid);
   this->tableHeap->GetTuple(&row, this->txn);
 
@@ -47,11 +49,11 @@ const Row &TableIterator::operator*() {
 }
 
 Row *TableIterator::operator->() {
-  Row* row;
-  row->SetRowId(this->rid);
-  this->tableHeap->GetTuple(row, this->txn);
+  row = Row();
+  row.SetRowId(this->rid);
+  this->tableHeap->GetTuple(&row, this->txn);
 
-  return row;
+  return &row;
 }
 
 TableIterator &TableIterator::operator=(const TableIterator &itr) noexcept = default;
@@ -75,7 +77,7 @@ TableIterator &TableIterator::operator++() {
       return *this;
     }
   }
-  tableHeap = nullptr;
+  tableHeap->buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
   rid = RowId();
   txn = nullptr;
   return *this;
@@ -100,7 +102,8 @@ TableIterator TableIterator::operator++(int) {
       tableHeap->buffer_pool_manager_->UnpinPage(page->GetTablePageId(), false);
       return TableIterator(tableHeap, old_rid, txn);
     }
-
   }
-  return TableIterator(nullptr, RowId(), nullptr);
+  this->rid = RowId();
+  this->txn = nullptr;
+  return TableIterator(tableHeap, RowId(), nullptr);
 }

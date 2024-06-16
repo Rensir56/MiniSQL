@@ -35,6 +35,7 @@ private:
   TableHeap *tableHeap;
   RowId rid;
   Txn *txn;
+  Row row;
 };
 
 #endif  // MINISQL_TABLE_ITERATOR_H
