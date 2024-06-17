@@ -120,7 +120,7 @@ uint32_t Row::DeserializeFrom(char *buf, Schema *schema) {
       }
   }
 
-  
+
   return offset;
 }
 

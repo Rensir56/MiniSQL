@@ -73,7 +73,7 @@ uint32_t Schema::DeserializeFrom(char *buf, Schema *&schema) {
   offset += sizeof(bool);
 
   schema = new Schema(columns_, is_manage);
-  
+
   return offset;
 }
 

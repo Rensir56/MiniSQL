@@ -375,7 +375,7 @@ return DB_SUCCESS;
  */
 dberr_t CatalogManager::GetTable(const table_id_t table_id, TableInfo *&table_info) {
   // ASSERT(false, "Not Implemented yet");
-  auto table = tables_.find(table_id); 
+  auto table = tables_.find(table_id);
   if(table == tables_.end()){
     return DB_TABLE_NOT_EXIST;
   }
