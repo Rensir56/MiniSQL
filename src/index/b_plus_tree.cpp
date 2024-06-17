@@ -22,6 +22,8 @@ BPlusTree::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_manager
 void BPlusTree::Destroy(page_id_t current_page_id) {
     if (IsEmpty())
       return;
+    if (current_page_id == INVALID_PAGE_ID)
+      return;
     auto page = buffer_pool_manager_->FetchPage(current_page_id);
     auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
     if (node->IsLeafPage()) {
