@@ -60,6 +60,7 @@ class IndexInfo {
     delete key_schema_;
   }
 
+
 /**
  * TODO: Student Implement
  */
@@ -74,6 +75,12 @@ class IndexInfo {
   }
 
   inline Index *GetIndex() { return index_; }
+
+  // add
+  IndexMetadata* GetMetaData() const { return meta_data_; }
+  TableInfo* GetTableInfo() const { return table_info_; }
+
+
 
   std::string GetIndexName() { return meta_data_->GetIndexName(); }
 
