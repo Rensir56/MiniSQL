@@ -14,6 +14,9 @@ IndexIterator::~IndexIterator() {
   if (current_page_id != INVALID_PAGE_ID)
     buffer_pool_manager->UnpinPage(current_page_id, false);
 }
+/**
+ * TODO: Student Implement
+ */
 
 /**
  * TODO: Student Implement
@@ -21,6 +24,9 @@ IndexIterator::~IndexIterator() {
 std::pair<GenericKey *, RowId> IndexIterator::operator*() {
   return std::make_pair(page->KeyAt(item_index), page->ValueAt(item_index));
 }
+/**
+ * TODO: Student Implement
+ */
 
 /**
  * TODO: Student Implement

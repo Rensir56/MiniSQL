@@ -20,58 +20,48 @@ inline int CompareStrings(const char *str1, int len1, const char *str2, int len2
 Type *Type::type_singletons_[] = {new Type(TypeId::kTypeInvalid), new TypeInt(), new TypeFloat(), new TypeChar()};
 
 uint32_t Type::SerializeTo(const Field &field, char *buf) const {
-  ASSERT(false, "SerializeTo not implemented.");
-  return 0;
+//  ASSERT(false, "SerializeTo not implemented.");
+  return type_singletons_[field.GetTypeId()]->SerializeTo(field, buf);
 }
 
 uint32_t Type::DeserializeFrom(char *storage, Field **field, bool is_null) const {
-  ASSERT(false, "DeserializeFrom not implemented.");
-  return 0;
+    return type_singletons_[(*field)->GetTypeId()]->DeserializeFrom(storage, field, is_null);
 }
 
 uint32_t Type::GetSerializedSize(const Field &field, bool is_null) const {
-  ASSERT(false, "GetSerializedSize not implemented.");
-  return 0;
+    return type_singletons_[field.GetTypeId()]->GetSerializedSize(field, is_null);
 }
 
 const char *Type::GetData(const Field &val) const {
-  ASSERT(false, "GetData not implemented.");
-  return nullptr;
+    return type_singletons_[val.GetTypeId()]->GetData(val);
 }
 
 uint32_t Type::GetLength(const Field &val) const {
-  ASSERT(false, "GetLength not implemented.");
-  return 0;
+    return type_singletons_[val.GetTypeId()]->GetLength(val);
 }
 
 CmpBool Type::CompareEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareEquals not implemented.");
-  return kNull;
+    return type_singletons_[left.GetTypeId()]->CompareEquals(left, right);
 }
 
 CmpBool Type::CompareNotEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareNotEquals not implemented.");
-  return kNull;
+    return type_singletons_[left.GetTypeId()]->CompareNotEquals(left, right);
 }
 
 CmpBool Type::CompareLessThan(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareLessThan not implemented.");
-  return kNull;
+    return type_singletons_[left.GetTypeId()]->CompareLessThan(left, right);
 }
 
 CmpBool Type::CompareLessThanEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareLessThanEquals not implemented.");
-  return kNull;
+    return type_singletons_[left.GetTypeId()]->CompareLessThanEquals(left, right);
 }
 
 CmpBool Type::CompareGreaterThan(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareGreaterThan not implemented.");
-  return kNull;
+    return type_singletons_[left.GetTypeId()]->CompareGreaterThan(left, right);
 }
 
 CmpBool Type::CompareGreaterThanEquals(const Field &left, const Field &right) const {
-  ASSERT(false, "CompareGreaterThanEquals not implemented.");
-  return kNull;
+    return type_singletons_[left.GetTypeId()]->CompareGreaterThanEquals(left, right);
 }
 
 // ==============================TypeInt=================================

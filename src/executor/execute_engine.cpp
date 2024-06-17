@@ -271,6 +271,8 @@ dberr_t ExecuteEngine::ExecuteDropDatabase(pSyntaxNode ast, ExecuteContext *cont
   remove(("./databases/" + db_name).c_str());
   delete dbs_[db_name];
   dbs_.erase(db_name);
+  if (db_name == current_db_)
+    current_db_ = "";
   return DB_SUCCESS;
 }
 
