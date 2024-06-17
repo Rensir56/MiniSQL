@@ -17,10 +17,18 @@ BPlusTree::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_manager
       processor_(KM),
       leaf_max_size_(leaf_max_size),
       internal_max_size_(internal_max_size) {
+  auto page = reinterpret_cast<IndexRootsPage *>(buffer_pool_manager_->FetchPage(INDEX_ROOTS_PAGE_ID));
+  if (!page->GetRootId(index_id_, &root_page_id_)) {
+    root_page_id_ = INVALID_PAGE_ID;
+  }
+  buffer_pool_manager_->UnpinPage(INDEX_ROOTS_PAGE_ID, true);
+  buffer_pool_manager_->UnpinPage(root_page_id_, true);
 }
 
 void BPlusTree::Destroy(page_id_t current_page_id) {
     if (IsEmpty())
+      return;
+    if (current_page_id == INVALID_PAGE_ID)
       return;
     auto page = buffer_pool_manager_->FetchPage(current_page_id);
     auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
@@ -181,9 +189,12 @@ bool BPlusTree::InsertIntoLeaf(GenericKey *key, const RowId &value, Txn *transac
 
   // If the leaf page is full after the insertion, split it
   if (new_size >= leaf_max_size_) {
+    page->WUnlatch();
     LeafPage *new_leaf_node = Split(leaf_node, transaction);
     GenericKey *new_leaf_node_key =  new_leaf_node->KeyAt(0);
-    InsertIntoParent(leaf_node, new_leaf_node_key, new_leaf_node, transaction);
+    GenericKey *old_leaf_node_key = leaf_node->KeyAt(0);
+    InsertIntoParent(old_leaf_node_key ,leaf_node, new_leaf_node_key, new_leaf_node, transaction);
+    buffer_pool_manager_->UnpinPage(leaf_node->GetPageId(), true);
     buffer_pool_manager_->UnpinPage(new_leaf_node->GetPageId(), true);
   } else {
     // Unlock the page and unpin it
@@ -267,7 +278,7 @@ BPlusTreeLeafPage *BPlusTree::Split(LeafPage *node, Txn *transaction) {
  * adjusted to take info of new_node into account. Remember to deal with split
  * recursively if necessary.
  */
-void BPlusTree::InsertIntoParent(BPlusTreePage *old_node, GenericKey *key, BPlusTreePage *new_node, Txn *transaction) {
+void BPlusTree::InsertIntoParent(GenericKey *old_key,BPlusTreePage *old_node, GenericKey *key, BPlusTreePage *new_node, Txn *transaction) {
   // Check the transaction state
   // if (transaction->GetState() == TxnState::kAborted) {
   //   throw TxnAbortException(transaction->GetTxnId(), AbortReason::kDeadlock);
@@ -282,7 +293,7 @@ void BPlusTree::InsertIntoParent(BPlusTreePage *old_node, GenericKey *key, BPlus
     }
     auto *root = reinterpret_cast<InternalPage *>(page->GetData());
     root->Init(root_page_id_, INVALID_PAGE_ID, old_node->GetKeySize(), internal_max_size_);
-    root->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
+    root->PopulateNewRoot(old_key,old_node->GetPageId(), key, new_node->GetPageId());
     old_node->SetParentPageId(root->GetPageId());
     new_node->SetParentPageId(root->GetPageId());
     UpdateRootPageId(0);
@@ -313,7 +324,7 @@ void BPlusTree::InsertIntoParent(BPlusTreePage *old_node, GenericKey *key, BPlus
         child->SetParentPageId(new_internal->GetPageId());
         buffer_pool_manager_->UnpinPage(child->GetPageId(), true);
       }
-      InsertIntoParent(parent, new_internal->KeyAt(0), new_internal, transaction);
+      InsertIntoParent(parent->KeyAt(0),parent, new_internal->KeyAt(0), new_internal, transaction);
       page->WUnlatch();
       buffer_pool_manager_->UnpinPage(new_internal->GetPageId(), true);
     } else {
@@ -588,9 +599,11 @@ IndexIterator BPlusTree::End() {
 Page *BPlusTree::FindLeafPage(const GenericKey *key, page_id_t page_id, bool leftMost) {
   // Fetch the page from the buffer pool manager
   Page *page = buffer_pool_manager_->FetchPage(page_id);
+
   if (page == nullptr) {
     throw std::runtime_error("Out of memory");
   }
+//  page->RLatch();
   BPlusTreePage *node = reinterpret_cast<BPlusTreePage *>(page->GetData());
   // If the node is a leaf page, return it
   if (node->IsLeafPage()) {
@@ -606,7 +619,7 @@ Page *BPlusTree::FindLeafPage(const GenericKey *key, page_id_t page_id, bool lef
     // Otherwise, find the appropriate child to descend into
     child_page_id = internal->Lookup(key, processor_);
   }
-  page->RUnlatch();
+//  page->RUnlatch();
   // Unpin the current page
   buffer_pool_manager_->UnpinPage(page_id, false);
   // Recursively find the leaf page

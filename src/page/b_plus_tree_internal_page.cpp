@@ -101,12 +101,13 @@ page_id_t InternalPage::Lookup(const GenericKey *key, const KeyManager &KM) {
  * page, you should create a new root page and populate its elements.
  * NOTE: This method is only called within InsertIntoParent()(b_plus_tree.cpp)
  */
-void InternalPage::PopulateNewRoot(const page_id_t &old_value, GenericKey *new_key, const page_id_t &new_value) {
+void InternalPage::PopulateNewRoot(GenericKey *old_key,const page_id_t &old_value, GenericKey *new_key, const page_id_t &new_value) {
   // Set the size to 2 as it will contain two child nodes
   SetSize(2);
   // Set the first value to old_value, the first key to new_key, and the second value to new_value
+  SetKeyAt(0, old_key);
   SetValueAt(0, old_value);
-  SetKeyAt(0, new_key);
+  SetKeyAt(1, new_key);
   SetValueAt(1, new_value);
 }
 

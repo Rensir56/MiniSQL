@@ -1,5 +1,6 @@
 #include "catalog/catalog.h"
 #include "glog/logging.h"
+#include "page/index_roots_page.h"
 void CatalogMeta::SerializeTo(char *buf) const {
   ASSERT(GetSerializedSize() <= PAGE_SIZE, "Failed to serialize catalog metadata to disk.");
   MACH_WRITE_UINT32(buf, CATALOG_METADATA_MAGIC_NUM);
@@ -234,6 +235,19 @@ dberr_t CatalogManager::GetIndex(const std::string &table_name, const std::strin
   //获取索引信息
   auto index = index_f->second;
   index_info = indexes_.find(index)->second;
+//  auto original_index = original_index_info->GetIndex();
+////  index_info = indexes_.find(index)->second;
+//  // deep copy
+//  table_id_t table_id = table_names_.find(table_name)->second;
+//  index_info = IndexInfo::Create();
+//  index_info->Init(original_index_info->GetMetaData(), tables_.find(table_id)->second, buffer_pool_manager_);
+//  Page *head_page = buffer_pool_manager_->FetchPage(INDEX_ROOTS_PAGE_ID);
+//  auto *header = reinterpret_cast<IndexRootsPage*>(head_page->GetData());
+//  page_id_t root_id;
+//  header->GetRootId(index, &root_id);
+//  buffer_pool_manager_->UnpinPage(INDEX_ROOTS_PAGE_ID, false);
+//  index_info->SetRootId(root_id);
+
   return DB_SUCCESS;
 }
 
@@ -355,6 +369,7 @@ dberr_t CatalogManager::LoadIndex(const index_id_t index_id, const page_id_t pag
   //创建索引信息
   IndexInfo *index_info = IndexInfo::Create();
   index_info->Init(index_metadata, tables_[index_metadata->GetTableId()], buffer_pool_manager_);
+
   //更新索引名称映射
   std::string table = tables_.find(index_metadata->GetTableId())->second->GetTableName();
   if(index_names_.find(table) == index_names_.end()){
