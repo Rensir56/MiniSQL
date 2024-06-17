@@ -44,7 +44,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   page_id_t Lookup(const GenericKey *key, const KeyManager &KP);
 
-  void PopulateNewRoot(const page_id_t &old_value, GenericKey *new_key, const page_id_t &new_value);
+  void PopulateNewRoot(GenericKey *old_key, const page_id_t &old_value, GenericKey *new_key, const page_id_t &new_value);
 
   int InsertNodeAfter(const page_id_t &old_value, GenericKey *new_key, const page_id_t &new_value);
 

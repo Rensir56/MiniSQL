@@ -54,7 +54,7 @@ void LeafPage::SetNextPageId(page_id_t next_page_id) {
  * 二分查找
  */
 int LeafPage::KeyIndex(const GenericKey *key, const KeyManager &KM) {
-  int left = 1;  // Start from the second key
+  int left = 0;  // Start from the second key
   int right = GetSize() - 1;  // GetSize() returns the number of keys
   int res = INVALID_PAGE_ID;
 

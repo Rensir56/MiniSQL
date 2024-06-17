@@ -72,7 +72,7 @@ class BPlusTree {
 
   bool InsertIntoLeaf(GenericKey *key, const RowId &value, Txn *transaction = nullptr);
 
-  void InsertIntoParent(BPlusTreePage *old_node, GenericKey *key, BPlusTreePage *new_node, Txn *transaction = nullptr);
+  void InsertIntoParent(GenericKey *old_key, BPlusTreePage *old_node, GenericKey *key, BPlusTreePage *new_node, Txn *transaction = nullptr);
 
   LeafPage *Split(LeafPage *node, Txn *transaction);
 

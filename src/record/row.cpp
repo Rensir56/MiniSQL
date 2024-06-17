@@ -132,7 +132,8 @@ uint32_t Row::GetSerializedSize(Schema *schema) const {
   uint32_t serialized_size = 0;
 
   // page_id and slot_sum
-  serialized_size += sizeof(page_id_t) + sizeof(uint32_t);
+//  if (this->rid_.GetPageId() != INVALID_PAGE_ID)
+    serialized_size += sizeof(page_id_t) + sizeof(uint32_t);
 
   // number of fields
   serialized_size += sizeof(uint32_t);
