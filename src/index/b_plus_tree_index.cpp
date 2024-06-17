@@ -1,5 +1,4 @@
 #include "index/b_plus_tree_index.h"
-#include <algorithm>
 
 #include "index/generic_key.h"
 #include "utils/tree_file_mgr.h"
@@ -15,7 +14,7 @@ dberr_t BPlusTreeIndex::InsertEntry(const Row &key, RowId row_id, Txn *txn) {
   processor_.SerializeFromKey(index_key, key, key_schema_);
 
   bool status = container_.Insert(index_key, row_id, txn);
-  delete index_key;
+  free(index_key);
   //  TreeFileManagers mgr("tree_");
   //  static int i = 0;
   //  if (i % 10 == 0) container_.PrintTree(mgr[i]);
@@ -32,43 +31,47 @@ dberr_t BPlusTreeIndex::RemoveEntry(const Row &key, RowId row_id, Txn *txn) {
   processor_.SerializeFromKey(index_key, key, key_schema_);
 
   container_.Remove(index_key, txn);
-  delete index_key;
+  free(index_key);
   return DB_SUCCESS;
 }
 
 dberr_t BPlusTreeIndex::ScanKey(const Row &key, vector<RowId> &result, Txn *txn, string compare_operator) {
   GenericKey *index_key = processor_.InitKey();
   processor_.SerializeFromKey(index_key, key, key_schema_);
+  auto end_iter = GetEndIterator();
   if (compare_operator == "=") {
     container_.GetValue(index_key, result, txn);
   } else if (compare_operator == ">") {
     auto iter = GetBeginIterator(index_key);
     if (container_.GetValue(index_key, result, txn)) ++iter;
     result.clear();
-    for (; iter != GetEndIterator(); ++iter) {
+    for (; iter != end_iter; ++iter) {
       result.emplace_back((*iter).second);
     }
   } else if (compare_operator == ">=") {
-    for (auto iter = GetBeginIterator(index_key); iter != GetEndIterator(); ++iter) {
+    for (auto iter = GetBeginIterator(index_key); iter != end_iter; ++iter) {
       result.emplace_back((*iter).second);
     }
   } else if (compare_operator == "<") {
-    for (auto iter = GetBeginIterator(); iter != GetBeginIterator(index_key); ++iter) {
+    auto stop_iter = GetBeginIterator(index_key);
+    for (auto iter = GetBeginIterator(); iter != stop_iter; ++iter) {
       result.emplace_back((*iter).second);
     }
   } else if (compare_operator == "<=") {
-    for (auto iter = GetBeginIterator(); iter != GetBeginIterator(index_key); ++iter) {
+    auto stop_iter = GetBeginIterator(index_key);
+    for (auto iter = GetBeginIterator(); iter != stop_iter; ++iter) {
       result.emplace_back((*iter).second);
     }
     container_.GetValue(index_key, result, txn);
   } else if (compare_operator == "<>") {
-    for (auto iter = GetBeginIterator(); iter != GetEndIterator(); ++iter) {
+    for (auto iter = GetBeginIterator(); iter != end_iter; ++iter) {
       result.emplace_back((*iter).second);
     }
     vector<RowId> temp;
-    if (container_.GetValue(index_key, temp, txn)) result.erase(find(result.begin(), result.end(), temp[0]));
+    if (container_.GetValue(index_key, temp, txn))
+      result.erase(find(result.begin(), result.end(), temp[0]));
   }
-  delete index_key;
+  free(index_key);
   if (!result.empty())
     return DB_SUCCESS;
   else
@@ -80,8 +83,14 @@ dberr_t BPlusTreeIndex::Destroy() {
   return DB_SUCCESS;
 }
 
-IndexIterator BPlusTreeIndex::GetBeginIterator() { return container_.Begin(); }
+IndexIterator BPlusTreeIndex::GetBeginIterator() {
+  return container_.Begin();
+}
 
-IndexIterator BPlusTreeIndex::GetBeginIterator(GenericKey *key) { return container_.Begin(key); }
+IndexIterator BPlusTreeIndex::GetBeginIterator(GenericKey *key) {
+  return container_.Begin(key);
+}
 
-IndexIterator BPlusTreeIndex::GetEndIterator() { return container_.End(); }
+IndexIterator BPlusTreeIndex::GetEndIterator() {
+  return container_.End();
+}
