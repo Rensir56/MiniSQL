@@ -5,6 +5,16 @@
  */
 bool TableHeap::InsertTuple(Row &row, Txn *txn) {
 
+  auto columns = schema_->GetColumns();
+  for (auto column : columns) {
+    if (column->IsUnique()) {
+      for (auto iter = Begin(txn); iter != End(); iter++) {
+        if (iter->GetField(column->GetTableInd())->CompareEquals(*(row.GetField(column->GetTableInd())))) {
+          return false;
+        }
+      }
+    }
+  }
 
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
   page->WLatch();

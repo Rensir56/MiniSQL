@@ -33,9 +33,7 @@ ExecuteEngine::ExecuteEngine() {
     mkdir("./databases", 0777);
     dir = opendir(path);
   }
-  /** When you have completed all the code for
-   *  the test, run it using main.cpp and uncomment
-   *  this part of the code.
+// here
   struct dirent *stdir;
   while((stdir = readdir(dir)) != nullptr) {
     if( strcmp( stdir->d_name , "." ) == 0 ||
@@ -44,7 +42,6 @@ ExecuteEngine::ExecuteEngine() {
       continue;
     dbs_[stdir->d_name] = new DBStorageEngine(stdir->d_name, false);
   }
-   **/
   closedir(dir);
 }
 
@@ -368,7 +365,7 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
         column_node_for_pri = column_node_for_pri->next_;
         continue;
       }
-      for (auto get_pri = column_node_for_pri; get_pri != nullptr; get_pri = get_pri->next_) {
+      for (auto get_pri = column_node_for_pri->child_; get_pri != nullptr; get_pri = get_pri->next_) {
         pri_key_set.insert(get_pri->val_);
       }
       break;
