@@ -5,6 +5,7 @@
  */
 bool TableHeap::InsertTuple(Row &row, Txn *txn) {
 
+
   auto page = reinterpret_cast<TablePage *>(buffer_pool_manager_->FetchPage(first_page_id_));
   page->WLatch();
   bool good_insert = page->InsertTuple(row, schema_, txn, lock_manager_, log_manager_);
