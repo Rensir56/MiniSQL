@@ -357,12 +357,65 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     string table_name = ast->child_->val_;
     vector<Column *> columns;
 
-    pSyntaxNode column_node = ast->child_->next_;
+    pSyntaxNode column_node = ast->child_->next_->child_;
+    pSyntaxNode column_node_for_pri = ast->child_->next_->child_;
+    int index = 0;
+    bool isPrimaryKey = false;
+    unordered_set<string> pri_key_set;
+    vector<string> uniqueKeys;
+    while (column_node_for_pri != nullptr) {
+      if (column_node_for_pri->type_ != kNodeColumnList) {
+        column_node_for_pri = column_node_for_pri->next_;
+        continue;
+      }
+      for (auto get_pri = column_node_for_pri; get_pri != nullptr; get_pri = get_pri->next_) {
+        pri_key_set.insert(get_pri->val_);
+      }
+      break;
+    }
+
+
     while (column_node != nullptr) {
+      if (column_node->type_ == kNodeColumnDefinition) {
         Column *new_column;
-        Column::DeserializeFrom(column_node->val_, new_column);
+
+        std::string columnName = column_node->child_->val_;
+        std::string columnType = column_node->child_->next_->val_;
+        bool isUnique = (column_node->val_ == "unique") | (pri_key_set.find(columnName) != pri_key_set.end());
+        if (isUnique) {
+          uniqueKeys.emplace_back(columnName);
+        }
+        TypeId type;
+        if (columnType == "int") {
+          type = TypeId::kTypeInt;
+        } else if (columnType == "float") {
+          type = TypeId::kTypeFloat;
+        } else if (columnType == "char") {
+          type = TypeId::kTypeChar;
+        } else {
+          type = TypeId::kTypeInvalid;
+        }
+        if (type == TypeId::kTypeInvalid) {
+          return DB_FAILED;
+        } else if (type == TypeId::kTypeChar) {
+            std::string columnLength = column_node->child_->next_->child_->val_;
+            if (columnLength.find('-') != string::npos || columnLength.find('.') != string::npos) {
+              cout << "char length type wrong !" << endl;
+              return DB_FAILED;
+            }
+            int length = std::stoi(columnLength);
+            new_column = new Column(columnName, type, length, index, false, isUnique);
+        } else {
+          new_column = new Column(columnName, type, index, false, isUnique);
+        }
+        index++;
         columns.push_back(new_column);
-        column_node = column_node->next_->next_;
+        column_node = column_node->next_;
+      } else if (column_node->type_ == kNodeColumnList) {
+        isPrimaryKey = (column_node->val_ == "primary keys");
+        break;
+      }
+
     }
 
     // check if the table already exists
@@ -372,21 +425,35 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
     }
 
     TableInfo* new_table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, new_table) == DB_SUCCESS) {
-        cout << "Table already exists" << endl;
-        return DB_ALREADY_EXIST;
+    Schema *schema = new Schema(columns, true); // what's is_manage
+    dberr_t err = context->GetCatalog()->CreateTable(table_name, schema, context->GetTransaction(), new_table);
+    if (err != DB_SUCCESS) {
+        return err;
     }
 
-    // create
-    // what's the schema?? to be done
-    Schema *test_schema = new Schema(columns, true);
-    if (dbs_[current_db_]->catalog_mgr_->CreateTable(table_name, test_schema, context->GetTransaction(),new_table) != DB_SUCCESS) {
-        delete new_table;
-        cout << "Failed to create table" << endl;
-        return DB_FAILED;
-    }
 
+    if (isPrimaryKey) {
+        // create index for primaryKey
+      IndexInfo *indexInfo;
+      vector<string> pri_keys;
+
+      for (auto pri_key = column_node->child_; pri_key != nullptr; pri_key = pri_key->next_) {
+        pri_keys.emplace_back(pri_key->val_);
+      }
+      err = context->GetCatalog()->CreateIndex(table_name, table_name + "_pri_key_index", pri_keys, context->GetTransaction(), indexInfo, "bptree");
+      if (err != DB_SUCCESS) {
+        return err;
+      }
+      // create index for uniqueKey
+      for (auto uniqueKey : uniqueKeys) {
+        string index_name = table_name + "_unique_index_";
+        index_name += uniqueKey;
+        err = context->GetCatalog()->CreateIndex(table_name, index_name, uniqueKeys, context->GetTransaction(), indexInfo, "bptree");
+        if (err != DB_SUCCESS) {
+          return err;
+        }
+      }
+    }
     cout << "Table created successfully" << endl;
 
   return DB_SUCCESS;
@@ -407,19 +474,21 @@ dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context
         return DB_FAILED;
     }
 
-    TableInfo* new_table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, new_table) == DB_SUCCESS) {
-        cout << "Table already exists" << endl;
-        return DB_ALREADY_EXIST;
+    dberr_t err = context->GetCatalog()->DropTable(table_name);
+    if (err != DB_SUCCESS) {
+        return err;
     }
 
-    if (dbs_[current_db_]->catalog_mgr_->DropTable(table_name) != DB_SUCCESS) {
-        cout << "Failed to drop table" << endl;
-        return DB_FAILED;
+    vector<IndexInfo *> index_infos;
+    context->GetCatalog()->GetTableIndexes(table_name, index_infos);
+    for (auto index_info : index_infos) {
+        err = context->GetCatalog()->DropIndex(table_name, index_info->GetIndexName());
+        if (err != DB_SUCCESS) {
+        return err;
+        }
     }
 
-    cout << "Table dropped successfully" << endl;
+    cout << "Table "<< table_name << " dropped successfully" << endl;
     return DB_SUCCESS;
 }
 
@@ -475,52 +544,47 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
     // extract, can be changed
     string index_name = ast->child_->val_;
     string table_name = ast->child_->next_->val_;
-    string column_name = ast->child_->next_->next_->val_;
+    string index_type = "bptree";
+    vector<string> column_names;
 
-    pSyntaxNode meta_data = ast->child_->next_->next_->next_;
-    IndexMetadata *indexMetadata;
-    IndexMetadata::DeserializeFrom(meta_data->val_, indexMetadata);
-
-    string index_type = ast->child_->next_->next_->next_->next_->val_;
-
-    if (current_db_.empty()) {
-        cout << "No database selected" << endl;
-        return DB_FAILED;
+    for (auto node = ast->child_->next_->next_->child_; node != nullptr; node = node->next_) {
+        column_names.emplace_back(node->val_);
     }
 
-
-    TableInfo* table = TableInfo::Create();
-
-    if (dbs_[current_db_]->catalog_mgr_->GetTable(table_name, table) != DB_SUCCESS) {
-        cout << "Table does not exists" << endl;
-        return DB_NOT_EXIST;
+    if (ast->child_->next_->next_->next_ != nullptr) {
+        index_type = ast->child_->next_->next_->next_->val_;
     }
 
-    IndexInfo* new_index = IndexInfo::Create();
-    if (dbs_[current_db_]->catalog_mgr_->GetIndex(table_name, index_name, new_index) != DB_SUCCESS) {
-        cout << "Index with the same name already exists" << endl;
-        return DB_FAILED;
+    TableInfo *tableInfo;
+    dberr_t err = context->GetCatalog()->GetTable(table_name, tableInfo);
+    if (err != DB_SUCCESS) {
+        return err;
     }
 
-    // what's the metadata
-
-    new_index->Init(indexMetadata, table, dbs_[current_db_]->bpm_);
-
-    // test for index_key
-    vector<string> index_keys;
-    string a = "test";
-    string b = "what";
-    index_keys.push_back(a);
-    index_keys.push_back(b);
-
-    if (dbs_[current_db_]->catalog_mgr_->CreateIndex(table_name, index_name, index_keys, context->GetTransaction(), new_index, index_type) != DB_SUCCESS) {
-        delete new_index;
-        cout << "Failed to create index" << endl;
-        return DB_FAILED;
+    IndexInfo *indexInfo;
+    err = context->GetCatalog()->CreateIndex(table_name, index_name, column_names, context->GetTransaction(), indexInfo, index_type);
+    if (err != DB_SUCCESS) {
+        return err;
     }
 
-    cout << "Index created successfully" << endl;
+    // get original field
+    auto row_begin = tableInfo->GetTableHeap()->Begin(context->GetTransaction());
+    auto row_end = tableInfo->GetTableHeap()->End();
+    for (auto row_iter = row_begin; row_iter != row_end; row_iter++) {
+      auto rid = (*row_iter).GetRowId();
+      vector<Field> fields;
+      for (auto col : indexInfo->GetIndexKeySchema()->GetColumns()) {
+            fields.push_back(*(*row_iter).GetField(col->GetTableInd()));
+      }
+      Row row_index(fields);
+      err = indexInfo->GetIndex()->InsertEntry(row_index, rid, context->GetTransaction());
+      if (err != DB_SUCCESS) {
+            return err;
+      }
+    }
+    cout << index_name << " created successfully !" << endl;
     return DB_SUCCESS;
+
 }
 
 /**
@@ -530,27 +594,40 @@ dberr_t ExecuteEngine::ExecuteDropIndex(pSyntaxNode ast, ExecuteContext *context
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropIndex" << std::endl;
 #endif
-
-    string table_name = ast->child_->val_;
-    string index_name = ast->child_->child_->val_;
-
     if (current_db_.empty()) {
         cout << "No database selected" << endl;
         return DB_FAILED;
     }
 
-    IndexInfo* index = IndexInfo::Create();
-    if (dbs_[current_db_]->catalog_mgr_->GetIndex(table_name, index_name, index) != DB_SUCCESS) {
-        cout << "Index does not exist" << endl;
-        return DB_NOT_EXIST;
+    string index_name = ast->child_->val_;
+    string table_name;
+    vector<TableInfo *> tableInfos;
+    dberr_t err = context->GetCatalog()->GetTables(tableInfos);
+    if (err != DB_SUCCESS) {
+        return err;
     }
 
-    if (dbs_[current_db_]->catalog_mgr_->DropIndex(table_name, index_name) != DB_SUCCESS) {
-        cout << "Failed to drop index" << endl;
-        return DB_FAILED;
+    bool findIndex = false;
+    for (auto tableInfo : tableInfos) {
+        IndexInfo *indexInfo;
+        err = context->GetCatalog()->GetIndex(tableInfo->GetTableName(), index_name, indexInfo);
+        if (err == DB_SUCCESS) {
+            findIndex = true;
+            table_name = tableInfo->GetTableName();
+            break;
+        }
     }
 
-    cout << "Index dropped successfully" << endl;
+    if (!findIndex) {
+        cout << "Index " << index_name << " not exist !" << endl;
+        return DB_INDEX_NOT_FOUND;
+    }
+
+    err = context->GetCatalog()->DropIndex(table_name, index_name);
+    if (err != DB_SUCCESS) {
+        return err;
+    }
+    cout << "Index "<< index_name << " dropped successfully" << endl;
     return DB_SUCCESS;
 }
 
@@ -589,37 +666,42 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
         cout << "Failed to open file: " << filename << endl;
         return DB_FAILED;
     }
+    const int buf_size = 1024;
+    char cmd[buf_size];
+    memset(cmd, 0, buf_size);
+    char ch;
+    int cnt = 0;
+    while (infile.get(ch)) {
+        cmd[cnt++] = ch;
+        if (ch == ';') {
+            infile.get(ch);
+            YY_BUFFER_STATE bp = yy_scan_string(cmd);
+            if (bp == nullptr) {
+              LOG(ERROR) << "Failed to create yy buffer state." << endl;
+              return DB_FAILED;
+            }
+            yy_switch_to_buffer(bp);
+            MinisqlParserInit();
+            yyparse();
+            if (MinisqlParserGetError()) {
+              printf("%s\n", MinisqlParserGetErrorMessage());
+              return DB_FAILED;
+            }
 
-    string line;
-    while (getline(infile, line)) {
-        YY_BUFFER_STATE bp = yy_scan_string(line.c_str());
-        if (bp == nullptr) {
-            LOG(ERROR) << "Failed to create yy buffer state." << endl;
-            return DB_FAILED;
-        }
-        yy_switch_to_buffer(bp);
+            auto result = Execute(MinisqlGetParserRootNode());
+            if (result == DB_FAILED) {
+              return DB_FAILED;
+            }
+            MinisqlParserFinish();
+            yy_delete_buffer(bp);
+            yylex_destroy();
 
-        MinisqlParserInit();
-
-        yyparse();
-
-        if (MinisqlParserGetError()) {
-            printf("%s\n", MinisqlParserGetErrorMessage());
-            return DB_FAILED;
-        }
-
-        auto result = Execute(MinisqlGetParserRootNode());
-        if (result == DB_FAILED) {
-            return DB_FAILED;
-        }
-
-        MinisqlParserFinish();
-        yy_delete_buffer(bp);
-        yylex_destroy();
-
-        ExecuteInformation(result);
-        if (result == DB_QUIT) {
-            break;
+            ExecuteInformation(result);
+            if (result == DB_QUIT) {
+              break;
+            }
+            memset(cmd, 0, buf_size);
+            cnt = 0;
         }
     }
   return DB_SUCCESS;
