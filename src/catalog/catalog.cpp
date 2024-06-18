@@ -74,6 +74,7 @@ CatalogManager::CatalogManager(BufferPoolManager *buffer_pool_manager, LockManag
 //    ASSERT(false, "Not Implemented yet");
   if(init){
     catalog_meta_ = CatalogMeta::NewInstance();
+    FlushCatalogMetaPage();
   } else {
     Page *page = buffer_pool_manager_->FetchPage(CATALOG_META_PAGE_ID);
     catalog_meta_ = CatalogMeta::DeserializeFrom(page->GetData());
@@ -325,7 +326,10 @@ dberr_t CatalogManager::DropIndex(const string &table_name, const string &index_
  */
 dberr_t CatalogManager::FlushCatalogMetaPage() const {
   // ASSERT(false, "Not Implemented yet");
-  buffer_pool_manager_->FlushPage(CATALOG_META_PAGE_ID);
+  auto meta_page = buffer_pool_manager_->FetchPage(CATALOG_META_PAGE_ID);
+  catalog_meta_->SerializeTo(meta_page->GetData());
+  buffer_pool_manager_->UnpinPage(CATALOG_META_PAGE_ID, true);
+  if (!buffer_pool_manager_->FlushPage(CATALOG_META_PAGE_ID)) return DB_FAILED;
   return DB_SUCCESS;
 }
 
