@@ -35,20 +35,62 @@ public:
     * TODO: Student Implement
     */
     void RedoPhase() {
-//        for (auto &log_rec : log_recs_) {
-//                auto &lsn = log_rec.second;
-//                switch (lsn->type_) {
-//                  case LogRecType::kInsert:
-////                    data_[]
-//                }
-//        }
+        auto a = log_recs_.begin();
+        for (; a != log_recs_.end() && a->first < persist_lsn_; a++) {
+        }
+        for (; a != log_recs_.end(); a++) {
+            LogRecPtr log_rec = a->second;
+            if(log_rec->type_ == LogRecType::kInvalid) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+            } else if(log_rec->type_ == LogRecType::kInsert) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+                data_.emplace(log_rec->ins_key_, log_rec->ins_val_);
+            } else if (log_rec->type_ == LogRecType::kUpdate) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+                data_.erase(log_rec->old_key_);
+                data_[log_rec->new_key_] = log_rec->new_val_;
+            } else if (log_rec->type_ == LogRecType::kDelete) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+                data_.erase(log_rec->del_key_);
+            } else if (log_rec->type_ == LogRecType::kBegin) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+            } else if (log_rec->type_ == LogRecType::kCommit) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+                active_txns_.erase(log_rec->txn_id_);
+            } else if (log_rec->type_ == LogRecType::kAbort) {
+                active_txns_[log_rec->txn_id_] = log_rec->lsn_;
+                rollback(log_rec->txn_id_);
+                active_txns_.erase(log_rec->txn_id_);
+            }
+        } 
     }
 
     /**
     * TODO: Student Implement
     */
-    void UndoPhase() {}
+    void UndoPhase() {
+        for(const auto it : active_txns_) {
+            rollback(it.first);
+        }
+        active_txns_.clear();
+    }
 
+    void rollback(txn_id_t txn_id) {
+        lsn_t last_lsn = active_txns_[txn_id];
+        while(last_lsn != INVALID_LSN) {
+            LogRecPtr log_rec = log_recs_[last_lsn];
+            if (log_rec == nullptr) break;
+            if(log_rec->type_ == LogRecType::kInsert) {
+                data_.erase(log_rec->ins_key_);
+            } else if (log_rec->type_ == LogRecType::kUpdate) {
+                data_.erase(log_rec->new_key_);
+                data_[log_rec->old_key_] = log_rec->old_val_;
+            } else if (log_rec->type_ == LogRecType::kDelete) {
+                data_[log_rec->del_key_] = log_rec->del_val_;
+            }
+            last_lsn = log_rec->prev_lsn_;
+        }
+    }
     // used for test only
     void AppendLogRec(LogRecPtr log_rec) { log_recs_.emplace(log_rec->lsn_, log_rec); }
 
